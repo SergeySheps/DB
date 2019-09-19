@@ -39,4 +39,5 @@ INNER JOIN (
 	FROM HumanResources.EmployeeDepartmentHistory AS b
 	INNER JOIN HumanResources.Department AS c ON b.DepartmentID = c.DepartmentID
 ) AS departments ON employees.BusinessEntityID = departments.BusinessEntityID
+WHERE departments.EndDate IS NULL
 GO
