@@ -79,10 +79,6 @@ DROP CONSTRAINT
     CK_Postal_code;
 GO
 
-/*SELECT CONSTRAINT_NAME
-FROM Sergey_Shepelevich.INFORMATION_SCHEMA.CONSTRAINT_TABLE_USAGE
-WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'PersonPhone';*/
-
 -- 6
 DROP TABLE
     Sergey_Shepelevich.dbo.PersonPhone;

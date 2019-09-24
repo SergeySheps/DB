@@ -1,60 +1,98 @@
 USE Sergey_Shepelevich;
 GO
 
-IF EXISTS (
-	SELECT * FROM sys.types st
-	WHERE st.name = N'Phone' )
-	BEGIN
-		DROP TYPE Phone
-	END;
+-- 1
+ALTER TABLE dbo.PersonPhone
+ADD
+    OrdersCount INT,
+    CardType NVARCHAR(50),
+    IsSuperior AS IIF (CardType = 'SuperiorCard', 1, 0);
 GO
 
-CREATE TYPE Phone FROM NVARCHAR(25) NOT NULL
-GO
-
---a
-CREATE TABLE PersonPhone (
-	BusinessEntityID INT NOT NULL,
-	PhoneNumber Phone NOT NULL,
-	PhoneNumberTypeID INT NOT NULL,
-	ModifiedDate DATETIME NOT NULL
+-- 2
+CREATE TABLE #PersonPhone
+(
+    BusinessEntityID INT NOT NULL PRIMARY KEY,
+    PhoneNumber NVARCHAR(25) NOT NULL,
+    PhoneNumberTypeID BIGINT NULL,
+    ModifiedDate DATETIME,
+    PostalCode NVARCHAR(15) DEFAULT ('0'),
+    OrdersCount INT,
+    CardType NVARCHAR(50)
 );
 GO
 
---b
-ALTER TABLE PersonPhone
-	ADD PRIMARY KEY (BusinessEntityID, PhoneNumber);
-GO
-
---c
-ALTER TABLE PersonPhone
-	ADD PostalCode NVARCHAR(15) CHECK(PostalCode LIKE '[^a-zA-Z]' );
-GO
-
---d
-ALTER TABLE PersonPhone
-	ADD CONSTRAINT df_PostalCode DEFAULT 0 FOR PostalCode;
-GO
-
---e
-INSERT INTO PersonPhone (
-	BusinessEntityID,
-	PhoneNumber,
-	PhoneNumberTypeID,
-	ModifiedDate
+--3
+WITH Orders_CTE (CreditCardID, OrdersCount)
+AS
+(
+    SELECT
+        CreditCardID,
+        COUNT(*) AS OrdersCount
+    FROM
+        AdventureWorks2012.Sales.SalesOrderHeader
+    GROUP BY
+        CreditCardID
 )
+INSERT INTO #PersonPhone
+    (
+        BusinessEntityID,
+        PhoneNumber,
+        PhoneNumberTypeID,
+        ModifiedDate,
+        PostalCode,
+        OrdersCount,
+        CardType
+    )
 SELECT 
-		a.BusinessEntityID,
-		a.PhoneNumber,
-		a.PhoneNumberTypeID,
-		a.ModifiedDate
-	FROM AdventureWorks2012.Person.PersonPhone AS a
-	INNER JOIN AdventureWorks2012.Person.PhoneNumberType AS b
-	ON a.PhoneNumberTypeID = b.PhoneNumberTypeID
-	WHERE b.Name = 'Cell'
-GO
+	dbo.PersonPhone.BusinessEntityID,
+    dbo.PersonPhone.PhoneNumber,
+    dbo.PersonPhone.PhoneNumberTypeID,
+    dbo.PersonPhone.ModifiedDate,
+    dbo.PersonPhone.PostalCode,
+    Orders_CTE.OrdersCount,
+    AdventureWorks2012.Sales.CreditCard.CardType
+FROM dbo.PersonPhone
+JOIN AdventureWorks2012.Sales.PersonCreditCard 
+	ON (dbo.PersonPhone.BusinessEntityID = AdventureWorks2012.Sales.PersonCreditCard.BusinessEntityID)
+JOIN AdventureWorks2012.Sales.CreditCard
+    ON (AdventureWorks2012.Sales.PersonCreditCard.CreditCardID = CreditCard.CreditCardID)
+JOIN Orders_CTE
+    ON (CreditCard.CreditCardID = Orders_CTE.CreditCardID);
 
---f
-ALTER TABLE PersonPhone
-	ALTER COLUMN PhoneNumberTypeID BIGINT NULL;
+-- 4
+DELETE
+FROM
+    dbo.PersonPhone
+WHERE
+    BusinessEntityID = 297;
+
+-- 5
+MERGE dbo.PersonPhone AS TARGET
+USING #PersonPhone AS source
+ON (TARGET.BusinessEntityID = source.BusinessEntityID)
+WHEN MATCHED THEN
+	UPDATE 
+	SET OrdersCount = source.OrdersCount, CardType = source.CardType
+WHEN NOT MATCHED BY TARGET THEN
+	INSERT
+    (
+        BusinessEntityID,
+        PhoneNumber,
+        PhoneNumberTypeID,
+        ModifiedDate,
+        OrdersCount,
+        CardType
+    )
+    VALUES
+    (
+        BusinessEntityID,
+        PhoneNumber,
+        PhoneNumberTypeID,
+        ModifiedDate,
+        OrdersCount,
+        CardType
+    )
+WHEN NOT MATCHED BY SOURCE THEN
+	DELETE;
 GO
