@@ -21,8 +21,6 @@ AS
 
 	INSERT INTO Sales.CurrencyHst(Action, ModifiedDate, SourceID, UserName)
 	VALUES('INSERT', GETDATE(), @sourceID, CURRENT_USER);
-
-	PRINT 'after insert trigger: success';
 GO
 
 CREATE TRIGGER currencyAfterUpdate ON Sales.Currency
@@ -34,8 +32,6 @@ AS
 
 	INSERT INTO Sales.CurrencyHst(Action, ModifiedDate, SourceID, UserName)
 	VALUES('UPDATE', GETDATE(), @sourceID, CURRENT_USER);
-
-	PRINT 'after update trigger: success';
 GO
 
 CREATE TRIGGER currencyAfterDelete ON Sales.Currency
@@ -47,25 +43,27 @@ AS
 
 	INSERT INTO Sales.CurrencyHst(Action, ModifiedDate, SourceID, UserName)
 	VALUES('DELETE', GETDATE(), @sourceID, CURRENT_USER);
-
-	PRINT 'after delete trigger: success';
 GO
 
 --3
 CREATE VIEW Sales.ViewCurrency 
 WITH ENCRYPTION 
 AS SELECT * FROM Sales.Currency;
+GO
 
 --4
-INSERT INTO Sales.Currency(CurrencyCode, ModifiedDate, Name)
+INSERT INTO Sales.ViewCurrency(CurrencyCode, ModifiedDate, Name)
 	VALUES('TST', GETDATE(), 'Hello!!!')
 GO
 
-UPDATE Sales.Currency
+UPDATE Sales.ViewCurrency
 	SET ModifiedDate= GETDATE(), Name= 'Hello!!!123'
 	WHERE CurrencyCode='TST'
 GO
 
-DELETE FROM Sales.Currency
+DELETE FROM Sales.ViewCurrency
 	WHERE CurrencyCode='TST'
+GO
+
+SELECT * FROM Sales.CurrencyHst;
 GO

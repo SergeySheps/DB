@@ -1,98 +1,137 @@
-USE Sergey_Shepelevich;
+USE AdventureWorks2012;
 GO
 
 -- 1
-ALTER TABLE dbo.PersonPhone
-ADD
-    OrdersCount INT,
-    CardType NVARCHAR(50),
-    IsSuperior AS IIF (CardType = 'SuperiorCard', 1, 0);
+CREATE VIEW Sales.ViewCurrency2
+WITH SCHEMABINDING
+AS
+SELECT 
+	currencyRate.CurrencyRateID,
+	currencyRate.CurrencyRateDate,
+	currencyRate.FromCurrencyCode,
+	currency.Name,
+	currency.CurrencyCode,
+	currencyRate.AverageRate,
+	currencyRate.EndOfDayRate
+FROM Sales.Currency AS currency
+INNER JOIN Sales.CurrencyRate AS currencyRate
+	ON currency.CurrencyCode = currencyRate.ToCurrencyCode
 GO
 
--- 2
-CREATE TABLE #PersonPhone
-(
-    BusinessEntityID INT NOT NULL PRIMARY KEY,
-    PhoneNumber NVARCHAR(25) NOT NULL,
-    PhoneNumberTypeID BIGINT NULL,
-    ModifiedDate DATETIME,
-    PostalCode NVARCHAR(15) DEFAULT ('0'),
-    OrdersCount INT,
-    CardType NVARCHAR(50)
-);
+
+CREATE UNIQUE CLUSTERED INDEX IX_CurrencyRateID
+	ON Sales.ViewCurrency2 (CurrencyRateID)
 GO
+
+--2
+CREATE TRIGGER InsteadViewCurrency2Trigger ON Sales.ViewCurrency2
+	INSTEAD OF INSERT, UPDATE, DELETE
+AS
+BEGIN
+	DECLARE @currencyCode NVARCHAR(50);
+
+	--delete
+	IF NOT EXISTS (SELECT * FROM inserted)
+		BEGIN 
+			SELECT @currencyCode = deleted.CurrencyCode FROM deleted;
+
+			DELETE
+			FROM Sales.CurrencyRate
+			WHERE ToCurrencyCode = @currencyCode;
+			
+			DELETE 
+			FROM Sales.Currency
+			WHERE CurrencyCode = @currencyCode
+		END;
+	--insert
+	ELSE IF NOT EXISTS (SELECT * FROM deleted)
+		BEGIN
+			IF NOT EXISTS (
+				SELECT * 
+				FROM Sales.Currency AS sc 
+				JOIN inserted ON inserted.CurrencyCode = sc.CurrencyCode)
+			BEGIN
+				INSERT INTO Sales.Currency (
+					CurrencyCode,
+					Name,
+					ModifiedDate)
+				SELECT 
+					CurrencyCode,
+					Name,
+					GETDATE()
+				FROM inserted
+			END
+			ELSE
+				UPDATE
+				    Sales.Currency
+				SET
+				    Name = inserted.Name,
+				    ModifiedDate = GETDATE()
+				FROM
+				    inserted
+				WHERE
+				    Currency.CurrencyCode = inserted.CurrencyCode
+
+			INSERT INTO Sales.CurrencyRate(
+				CurrencyRateDate,
+				FromCurrencyCode,
+				ToCurrencyCode,
+				AverageRate,
+				EndOfDayRate,
+				ModifiedDate)
+			SELECT 
+				CurrencyRateDate,
+				FromCurrencyCode,
+				CurrencyCode,
+				AverageRate,
+				EndOfDayRate,
+				GETDATE()
+			FROM inserted
+		END;
+		--update
+	ELSE
+		BEGIN
+			UPDATE Sales.Currency
+			SET 
+				Name = inserted.Name,
+				ModifiedDate = GETDATE()
+			FROM Sales.Currency AS currencies
+			JOIN inserted ON inserted.CurrencyCode = currencies.CurrencyCode
+
+			UPDATE Sales.CurrencyRate
+			SET 
+				CurrencyRateDate= inserted.CurrencyRateDate,
+				AverageRate= inserted.AverageRate,
+				EndOfDayRate= inserted.EndOfDayRate,
+				ModifiedDate= GETDATE()
+			FROM Sales.CurrencyRate AS currencyRates
+			JOIN inserted ON inserted.CurrencyRateID = currencyRates.CurrencyRateID
+		END;
+END;
 
 --3
-WITH Orders_CTE (CreditCardID, OrdersCount)
-AS
-(
-    SELECT
-        CreditCardID,
-        COUNT(*) AS OrdersCount
-    FROM
-        AdventureWorks2012.Sales.SalesOrderHeader
-    GROUP BY
-        CreditCardID
-)
-INSERT INTO #PersonPhone
-    (
-        BusinessEntityID,
-        PhoneNumber,
-        PhoneNumberTypeID,
-        ModifiedDate,
-        PostalCode,
-        OrdersCount,
-        CardType
-    )
-SELECT 
-	dbo.PersonPhone.BusinessEntityID,
-    dbo.PersonPhone.PhoneNumber,
-    dbo.PersonPhone.PhoneNumberTypeID,
-    dbo.PersonPhone.ModifiedDate,
-    dbo.PersonPhone.PostalCode,
-    Orders_CTE.OrdersCount,
-    AdventureWorks2012.Sales.CreditCard.CardType
-FROM dbo.PersonPhone
-JOIN AdventureWorks2012.Sales.PersonCreditCard 
-	ON (dbo.PersonPhone.BusinessEntityID = AdventureWorks2012.Sales.PersonCreditCard.BusinessEntityID)
-JOIN AdventureWorks2012.Sales.CreditCard
-    ON (AdventureWorks2012.Sales.PersonCreditCard.CreditCardID = CreditCard.CreditCardID)
-JOIN Orders_CTE
-    ON (CreditCard.CreditCardID = Orders_CTE.CreditCardID);
-
--- 4
-DELETE
-FROM
-    dbo.PersonPhone
-WHERE
-    BusinessEntityID = 297;
-
--- 5
-MERGE dbo.PersonPhone AS TARGET
-USING #PersonPhone AS source
-ON (TARGET.BusinessEntityID = source.BusinessEntityID)
-WHEN MATCHED THEN
-	UPDATE 
-	SET OrdersCount = source.OrdersCount, CardType = source.CardType
-WHEN NOT MATCHED BY TARGET THEN
-	INSERT
-    (
-        BusinessEntityID,
-        PhoneNumber,
-        PhoneNumberTypeID,
-        ModifiedDate,
-        OrdersCount,
-        CardType
-    )
-    VALUES
-    (
-        BusinessEntityID,
-        PhoneNumber,
-        PhoneNumberTypeID,
-        ModifiedDate,
-        OrdersCount,
-        CardType
-    )
-WHEN NOT MATCHED BY SOURCE THEN
-	DELETE;
+INSERT INTO Sales.ViewCurrency2(
+	CurrencyRateDate,
+	FromCurrencyCode,
+	CurrencyCode,
+	Name,
+	AverageRate,
+	EndOfDayRate)
+VALUES(GETDATE(), 'USD','TST', 'TEST1', 2.01, 1.65)
 GO
+
+UPDATE Sales.ViewCurrency2
+SET 
+	Name='TERT',
+	AverageRate = 2.33,
+	EndOfDayRate=3.1
+WHERE CurrencyCode = 'TST'
+GO
+
+DELETE 
+FROM Sales.ViewCurrency2
+WHERE CurrencyCode = 'TST'
+GO
+
+--SELECT * FROM Sales.Currency WHERE CurrencyCode = 'TST'        --for testing
+--SELECT * FROM Sales.CurrencyRate WHERE ToCurrencyCode = 'TST'  --for testing

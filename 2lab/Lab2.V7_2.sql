@@ -23,17 +23,17 @@ GO
 
 --b
 ALTER TABLE PersonPhone
-	ADD PRIMARY KEY (BusinessEntityID, PhoneNumber);
+	ADD CONSTRAINT PK_PersonPhone PRIMARY KEY (BusinessEntityID, PhoneNumber);
 GO
 
 --c
 ALTER TABLE PersonPhone
-	ADD PostalCode NVARCHAR(15) CHECK(PostalCode LIKE '[^a-zA-Z]' );
+	ADD PostalCode NVARCHAR(15) CONSTRAINT CK_Postal_code CHECK(PostalCode LIKE '[^a-zA-Z]' );
 GO
 
 --d
 ALTER TABLE PersonPhone
-	ADD CONSTRAINT df_PostalCode DEFAULT 0 FOR PostalCode;
+	ADD CONSTRAINT DF_PostalCode DEFAULT 0 FOR PostalCode;
 GO
 
 --e
