@@ -42,7 +42,7 @@ GO
 
 --4
 DROP FUNCTION
-    Purchasing.getOrderDetails;
+    Purchasing.getOrderDetails
 GO
 
 CREATE FUNCTION
