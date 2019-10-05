@@ -42,8 +42,7 @@ SELECT
     ProductModelName = xmlNode.value('Model[1]/Name[1]', 'NVARCHAR(50)')
 FROM
     @xml.nodes('/Products/Product') AS xml(xmlNode)
-
-   SELECT * FROM #ProductTemp
 GO
 
+SELECT * FROM #ProductTemp
 
